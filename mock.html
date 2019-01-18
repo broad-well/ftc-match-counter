@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>FTC Match Counter</title>
+</head>
+
+<body>
+    <red-side>
+        <current-teams>
+
+            <team>?</team>
+            <team>?</team>
+        </current-teams>
+        <next-teams>
+            <team>?</team>
+            <team>?</team>
+        </next-teams>
+        <queue-teams>
+            <team>?</team>
+            <team>?</team>
+        </queue-teams>
+    </red-side>
+    <blue-side>
+        <current-teams>
+            <team>?</team>
+            <team>?</team>
+        </current-teams>
+        <next-teams>
+            <team>?</team>
+            <team>?</team>
+        </next-teams>
+        <queue-teams>
+            <team>?</team>
+            <team>?</team>
+        </queue-teams>
+    </blue-side>
+    <round-container>
+        <round-counter>
+            <span>Current Round</span>
+            <round>
+                ?
+            </round>
+        </round-counter>
+        <rankings>
+        </rankings>
+        <welcome>
+            <banner>RoboStorm 4.1</banner>
+            <subtitle>Welcome and Good Luck!</subtitle>
+            <time></time>
+        </welcome>
+    </round-container>
+    <style>
+        body {
+            background-color: #222222;
+        }
+
+        round-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 2rem;
+        }
+
+        round-counter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 4vw;
+            font-family: sans-serif;
+            color: white;
+        }
+
+        round {
+            font-size: 17vw;
+            font-family: monospace;
+            line-height: 80%;
+        }
+
+        red-side {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 20vw;
+        }
+
+        blue-side {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 20vw;
+        }
+
+        current-teams,
+        next-teams,
+        queue-teams {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            left: 0;
+            right: 0;
+            position: relative;
+            margin: 5px;
+            padding: 20px;
+            color: white;
+            font-family: 'Segoe UI';
+        }
+
+        next-teams {
+            opacity: 0.8;
+        }
+
+        queue-teams {
+            opacity: 0.7;
+        }
+
+        red-side team,
+        blue-side team {
+            font-size: 11vh;
+            line-height: 100%;
+            font-family: monospace;
+        }
+
+        red-side team {
+            text-align: right;
+        }
+
+        blue-side team {
+            text-align: left;
+        }
+
+        red-side>* {
+            background-color: red;
+        }
+
+        blue-side>* {
+            background-color: blue;
+        }
+
+        queue-teams::before {
+            content: "IN QUEUE";
+        }
+
+        next-teams::before {
+            content: "UP NEXT";
+        }
+
+        current-teams::before {
+            content: "ON FIELD";
+        }
+
+        blue-side>*::before {
+            text-align: left;
+        }
+
+        red-side>*::before {
+            text-align: right;
+        }
+
+        queue-teams::before,
+        next-teams::before,
+        current-teams::before {
+            color: #ddd;
+            padding-bottom: 2px;
+            font-size: 2.3vw;
+            font-weight: bold;
+        }
+
+        rankings {
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            position: absolute;
+            bottom: 0;
+            left: 20vw;
+            right: 20vw;
+            margin: 0 auto;
+            max-height: 60vh;
+        }
+
+        ranking {
+            background: purple;
+            padding: 10px;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            margin: 4px;
+            color: white;
+            font: 24px monospace;
+        }
+
+        welcome {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: #333;
+        }
+
+        welcome banner {
+            font: 10vh sans-serif;
+            color: white;
+        }
+
+        welcome subtitle {
+            font: 8vh sans-serif;
+            font-style: italic;
+            color: #ddd;
+        }
+
+        welcome time {
+            font: 7vh monospace;
+            color: white;
+            margin-top: 30vh;
+        }
+    </style>
+    <script>
+        const currentRedTeams = document.querySelector('red-side current-teams').children;
+        const currentBlueTeams = document.querySelector('blue-side current-teams').children;
+        const queueingRedTeams = document.querySelector('red-side queue-teams').children;
+        const queueingBlueTeams = document.querySelector('blue-side queue-teams').children;
+        const nextRedTeams = document.querySelector('red-side next-teams').children;
+        const nextBlueTeams = document.querySelector('blue-side next-teams').children;
+        const roundCounter = document.querySelector('round');
+        const roundCaption = document.querySelector('round-container span');
+        let ranking = [];
+        let schedule = null;
+
+        function populateSchedule(host, event) {
+            const request = new XMLHttpRequest();
+            request.onreadystatechange = function () {
+                if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
+                    schedule = JSON.parse(request.responseText).schedule;
+                    console.info('Schedule populated');
+                }
+            }
+            request.open('GET', `http://${host}/event/${event}/control/schedule`);
+            request.send();
+        }
+
+        function updateRanking(host, event) {
+            const request = new XMLHttpRequest();
+            request.onreadystatechange = function () {
+                if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
+                    ranking = JSON.parse(request.responseText).rankingList;
+                    ranking.sort((a, b) => a.ranking - b.ranking);
+                    renderRankings();
+                    console.info('Rankings rendered');
+                }
+            }
+            request.open('GET', `http://${host}/apiv1/events/${event}/rankings/`);
+            request.send();
+        }
+
+        function renderRankings() {
+            while (document.querySelector('rankings').children.length < ranking.length)
+                appendEmptyRanking();
+            for (let i = 0; i < ranking.length; i++)
+                populateRanking(i, ranking[i]);
+        }
+
+        function appendEmptyRanking() {
+            const parent = document.querySelector('rankings');
+            const element = document.createElement('ranking');
+            const team = document.createElement('team');
+            const plays = document.createElement('plays');
+            const rank = document.createElement('rank');
+
+            element.appendChild(team);
+            element.appendChild(plays);
+            element.appendChild(rank);
+            parent.appendChild(element);
+        }
+
+        function populateRanking(index, rank) {
+            const ranking = document.querySelector('rankings').children[index];
+            let team = rank.team.toString();
+            while (team.length < 5)
+                team += ' ';
+
+            ranking.querySelector('team').innerHTML = team.replace(/\s/g, '&nbsp;');
+            ranking.querySelector('plays').innerText = rank.matchesPlayed;
+            ranking.querySelector('rank').innerText = rank.ranking < 1 ? "NP" : `#${rank.ranking}`;
+        }
+
+        function alliancesOfRound(roundNumber) {
+            if (roundNumber > schedule.length) {
+                return { red: ['-', ''], blue: ['-', ''] };
+            }
+            const round = schedule[roundNumber - 1];
+            return { red: [round.red.team1, round.red.team2], blue: [round.blue.team1, round.blue.team2] };
+        }
+
+        function populateTeams(teamChildren, teams) {
+            if (teams === undefined)
+                return;
+            for (let i = 0; i < teamChildren.length; i++) {
+                teamChildren[i].innerText = teams[i];
+            }
+        }
+        function showPrep(roundNum) {
+            const current = alliancesOfRound(roundNum);
+            const next = alliancesOfRound(roundNum + 1);
+            const queue = alliancesOfRound(roundNum + 2);
+            populateTeams(currentRedTeams, current.red);
+            populateTeams(currentBlueTeams, current.blue);
+            populateTeams(nextRedTeams, next.red);
+            populateTeams(nextBlueTeams, next.blue);
+            populateTeams(queueingRedTeams, queue.red);
+            populateTeams(queueingBlueTeams, queue.blue);
+            roundCounter.innerHTML = schedule[roundNum - 1].shortName;
+            roundCaption.innerText = "Preparing Match";
+
+            console.info('Preparing Match. Teams populated');
+        }
+        function showStart() {
+            roundCaption.innerText = "Match In Progress";
+        }
+        function showAbort() {
+            roundCaption.innerText = "Match ABORTED";
+        }
+
+        function ftcPollEndpoint(host, event) {
+            return `http://${host}/event/${event}/display/command?random=${Math.random()}`;
+        }
+
+        function handleShowPreview(response) {
+            startBackgroundFlash();
+            showPrep(response.params[0]);
+        }
+
+        function handleStart(response) {
+            startBackgroundFlash();
+            showStart();
+        }
+
+        function pollBlocking(host, event) {
+            const request = new XMLHttpRequest();
+            request.onreadystatechange = function () {
+                if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
+                    const response = JSON.parse(request.responseText);
+                    if (response.type === "START_MATCH")
+                        handleStart(response);
+                    else if (response.type === "SHOW_PREVIEW")
+                        handleShowPreview(response);
+                    else if (response.type === "ABORT_MATCH") {
+                        startBackgroundFlash();
+                        showAbort();
+                    }
+                    pollBlocking(host, event);
+                }
+            };
+            request.open('GET', ftcPollEndpoint(host, event));
+            request.send();
+        }
+
+        function startBackgroundFlash() {
+            function show(color) {
+                return () => document.body.style.background = color;
+            }
+            const schedule = [
+                [show('orange'), 500],
+                [show(''), 500],
+                [show('orange'), 500],
+                [show(''), 500],
+                [show('orange'), 500],
+                [show(''), 500]
+            ];
+            let index = 0;
+
+            function advanceSchedule() {
+                const i = index++;
+                if (i < schedule.length) {
+                    schedule[i][0]();
+                    setTimeout(advanceSchedule, schedule[i][1]);
+                }
+            }
+            advanceSchedule();
+        }
+
+        function setupRecurringRankingUpdate(host, event, frequency) {
+            return setInterval(() => {
+                updateRanking(host, event);
+            }, frequency);
+        }
+
+        function setupTimerUpdate() {
+            timerUpdate = setInterval(() => {
+                const timeExpression = new Date().toLocaleTimeString();
+                document.querySelectorAll('time').forEach(it => it.innerText = timeExpression);
+            }, 1000);
+        }
+
+        const control = {
+            hideWelcome: function () {
+                document.querySelector('welcome').style.display = 'none';
+            },
+            showWelcome: function (message) {
+                document.querySelector('welcome').style.display = '';
+                if (message !== undefined)
+                    document.querySelector('subtitle').innerText = message;
+            },
+            initialize: function (host, event) {
+                populateSchedule(host, event);
+                pollBlocking(host, event);
+                setupRecurringRankingUpdate(host, event, 10000);
+            },
+            flash: startBackgroundFlash
+        };
+
+        setupTimerUpdate();
+    </script>
+</body>
+
+</html>
