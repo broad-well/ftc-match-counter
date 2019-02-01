@@ -48,7 +48,7 @@
         <rankings>
         </rankings>
         <welcome>
-            <banner>RoboStorm 4.1</banner>
+            <banner>Robostorm 4.3</banner>
             <subtitle>Welcome and Good Luck!</subtitle>
             <time></time>
         </welcome>
@@ -187,14 +187,29 @@
 
         ranking {
             background: purple;
-            padding: 10px;
             display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             margin: 4px;
             color: white;
-            font: 24px monospace;
+            font: 2.5em monospace;
+        }
+
+        ranking team {
+            padding: 10px;
+            text-align: center;
+            box-sizing: border-box;
+            background: brown;
+        }
+
+        ranking table {
+            padding: 5px 10px;
+            width: 100%;
+            font-size: 2rem;
+            box-sizing: border-box;
+        }
+
+        ranking table td:nth-child(2) {
+            text-align: right;
         }
 
         welcome {
@@ -252,13 +267,13 @@
             request.send();
         }
 
-        function updateRanking(host, event) {
+        function updateRanking(host, event, half) {
             const request = new XMLHttpRequest();
             request.onreadystatechange = function () {
                 if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
                     ranking = JSON.parse(request.responseText).rankingList;
                     ranking.sort((a, b) => a.ranking - b.ranking);
-                    renderRankings();
+                    renderRankings(half);
                     console.info('Rankings rendered');
                 }
             }
@@ -266,35 +281,33 @@
             request.send();
         }
 
-        function renderRankings() {
-            while (document.querySelector('rankings').children.length < ranking.length)
+        function renderRankings(half) {
+            const teamCount = half == 0 ? Math.ceil(ranking.length / 2) : Math.floor(ranking.length / 2);
+            const rankings = document.querySelector('rankings');
+            rankings.innerHTML = '';
+
+            while (rankings.children.length < teamCount)
                 appendEmptyRanking();
-            for (let i = 0; i < ranking.length; i++)
-                populateRanking(i, ranking[i]);
+
+            for (let i = 0; i < teamCount; i++)
+                populateRanking(i, ranking[(Math.ceil(ranking.length / 2) * half) + i]);
         }
 
         function appendEmptyRanking() {
-            const parent = document.querySelector('rankings');
-            const element = document.createElement('ranking');
-            const team = document.createElement('team');
-            const plays = document.createElement('plays');
-            const rank = document.createElement('rank');
-
-            element.appendChild(team);
-            element.appendChild(plays);
-            element.appendChild(rank);
-            parent.appendChild(element);
+            document.querySelector('rankings').innerHTML += "<ranking><team></team><table><tbody><tr><td>PLAYED</td><td plays>0</td></tr><tr><td>RP</td><td rp>0</td></tr><tr><td>TBP</td><td tbp>0</td></tr></tbody></table></ranking>";
         }
 
         function populateRanking(index, rank) {
             const ranking = document.querySelector('rankings').children[index];
+            const rankExpr = rank.ranking < 1 ? "NP" : `#${rank.ranking}`;
             let team = rank.team.toString();
-            while (team.length < 5)
+            while (team.length < 6)
                 team += ' ';
 
-            ranking.querySelector('team').innerHTML = team.replace(/\s/g, '&nbsp;');
-            ranking.querySelector('plays').innerText = rank.matchesPlayed;
-            ranking.querySelector('rank').innerText = rank.ranking < 1 ? "NP" : `#${rank.ranking}`;
+            ranking.querySelector('team').innerHTML = team.replace(/\s/g, '&nbsp;') + rankExpr;
+            ranking.querySelector('td[plays]').innerText = rank.matchesPlayed;
+            ranking.querySelector('td[rp]').innerText = rank.rankingPoints;
+            ranking.querySelector('td[tbp]').innerText = rank.tieBreakerPoints;
         }
 
         function alliancesOfRound(roundNumber) {
@@ -393,8 +406,10 @@
         }
 
         function setupRecurringRankingUpdate(host, event, frequency) {
+            let half = 0;
             return setInterval(() => {
-                updateRanking(host, event);
+                updateRanking(host, event, half);
+                half = (half + 1) % 2;
             }, frequency);
         }
 
@@ -417,7 +432,7 @@
             initialize: function (host, event) {
                 populateSchedule(host, event);
                 pollBlocking(host, event);
-                setupRecurringRankingUpdate(host, event, 10000);
+                setupRecurringRankingUpdate(host, event, 8000);
             },
             flash: startBackgroundFlash
         };
