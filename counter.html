@@ -40,7 +40,7 @@
     </blue-side>
     <round-container>
         <round-counter>
-            <span>Current Round</span>
+            <span>Current Match</span>
             <round>
                 ?
             </round>
@@ -48,7 +48,7 @@
         <rankings>
         </rankings>
         <welcome>
-            <banner>Robostorm 4.3</banner>
+            <banner>Robostorm 4.4</banner>
             <subtitle>Welcome and Good Luck!</subtitle>
             <time></time>
         </welcome>
@@ -108,20 +108,12 @@
             margin: 5px;
             padding: 20px;
             color: white;
-            font-family: 'Segoe UI';
-        }
-
-        next-teams {
-            opacity: 0.8;
-        }
-
-        queue-teams {
-            opacity: 0.7;
+            font-family: 'Segoe UI', sans-serif;
         }
 
         red-side team,
         blue-side team {
-            font-size: 11vh;
+            font-size: 6vw;
             line-height: 100%;
             font-family: monospace;
         }
@@ -173,7 +165,7 @@
 
         rankings {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             flex-wrap: wrap;
             background: rgba(0, 0, 0, 0.5);
             padding: 5px;
@@ -183,13 +175,14 @@
             right: 20vw;
             margin: 0 auto;
             max-height: 60vh;
+            justify-content: center;
         }
 
         ranking {
             background: purple;
             display: flex;
             flex-direction: column;
-            margin: 4px;
+            margin: 6px;
             color: white;
             font: 2.5em monospace;
         }
@@ -254,16 +247,17 @@
         const roundCaption = document.querySelector('round-container span');
         let ranking = [];
         let schedule = null;
+        let roundEndTask = null;
 
         function populateSchedule(host, event) {
             const request = new XMLHttpRequest();
             request.onreadystatechange = function () {
                 if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
-                    schedule = JSON.parse(request.responseText).schedule;
+                    schedule = JSON.parse(request.responseText).matches;
                     console.info('Schedule populated');
                 }
             }
-            request.open('GET', `http://${host}/event/${event}/control/schedule`);
+            request.open('GET', `http://${host}/apiv1/events/${event}/matches/`);
             request.send();
         }
 
@@ -273,12 +267,12 @@
                 if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
                     ranking = JSON.parse(request.responseText).rankingList;
                     ranking.sort((a, b) => a.ranking - b.ranking);
-                    renderRankings(half);
                     console.info('Rankings rendered');
                 }
             }
             request.open('GET', `http://${host}/apiv1/events/${event}/rankings/`);
             request.send();
+            renderRankings(half);
         }
 
         function renderRankings(half) {
@@ -335,10 +329,10 @@
             populateTeams(nextBlueTeams, next.blue);
             populateTeams(queueingRedTeams, queue.red);
             populateTeams(queueingBlueTeams, queue.blue);
-            roundCounter.innerHTML = schedule[roundNum - 1].shortName;
+            roundCounter.innerHTML = schedule[roundNum - 1].matchNumber;
             roundCaption.innerText = "Preparing Match";
 
-            console.info('Preparing Match. Teams populated');
+            console.info(`Preparing Match ${roundNum}. Teams populated`);
         }
         function showStart() {
             roundCaption.innerText = "Match In Progress";
@@ -359,20 +353,24 @@
         function handleStart(response) {
             startBackgroundFlash();
             showStart();
+            startRound();
         }
 
         function pollBlocking(host, event) {
             const request = new XMLHttpRequest();
             request.onreadystatechange = function () {
-                if (request.readyState === XMLHttpRequest.DONE && request.status === 200) {
-                    const response = JSON.parse(request.responseText);
-                    if (response.type === "START_MATCH")
-                        handleStart(response);
-                    else if (response.type === "SHOW_PREVIEW")
-                        handleShowPreview(response);
-                    else if (response.type === "ABORT_MATCH") {
-                        startBackgroundFlash();
-                        showAbort();
+                if (request.readyState === XMLHttpRequest.DONE) {
+                    if (request.status === 200) {
+                        const response = JSON.parse(request.responseText);
+                        if (response.type === "START_MATCH")
+                            handleStart(response);
+                        else if (response.type === "SHOW_PREVIEW")
+                            handleShowPreview(response);
+                        else if (response.type === "ABORT_MATCH") {
+                            startBackgroundFlash();
+                            showAbort();
+                            abortRound();
+                        }
                     }
                     pollBlocking(host, event);
                 }
@@ -420,6 +418,17 @@
             }, 1000);
         }
 
+        function startRound() {
+            roundEndTask = setTimeout(() => {
+                startBackgroundFlash();
+                roundCaption.innerText = "Match Complete";
+            }, (120 + 38) * 1000);
+        }
+
+        function abortRound() {
+            clearTimeout(roundEndTask);
+        }
+
         const control = {
             hideWelcome: function () {
                 document.querySelector('welcome').style.display = 'none';
@@ -432,7 +441,7 @@
             initialize: function (host, event) {
                 populateSchedule(host, event);
                 pollBlocking(host, event);
-                setupRecurringRankingUpdate(host, event, 8000);
+                setupRecurringRankingUpdate(host, event, 7000);
             },
             flash: startBackgroundFlash
         };
